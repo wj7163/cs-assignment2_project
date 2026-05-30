@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스마트 공부 시간 측정기 & AI 분석기</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding-bottom: 60px; }
+
+        /* 상단 헤더 */
+        header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 25px 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        header h1 { font-size: 24px; margin-bottom: 5px; }
+        header p { font-size: 14px; opacity: 0.9; }
+
+        /* 메인 컨테이너 */
+        .container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
+        .card { background: var(--card); padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; text-align: center; }
+
+        /* 탭 메뉴 */
+        .nav-tabs { display: flex; justify-content: space-between; background: #fff; padding: 10px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .tab-btn { background: none; border: none; padding: 10px 5px; font-size: 14px; font-weight: bold; color: var(--text-light); cursor: pointer; border-radius: 8px; transition: 0.3s; width: 19%; }
+        .tab-btn.active { background: var(--primary); color: white; }
+
+        /* 화면 제어 */
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 타이머 디자인 및 버튼 토글 */
+        .timer-display { font-size: 48px; font-weight: bold; font-family: monospace; color: var(--primary); margin: 20px 0; letter-spacing: 2px; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; margin: 5px; width: 200px; }
+        .btn-start { background-color: #10b981; color: white; }
+        .btn-stop { background-color: #ef4444; color: white; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn:hover { opacity: 0.9; }
+
+        /* 게이지 바 */
+        .progress-container { background: #e2e8f0; border-radius: 10px; height: 20px; width: 100%; margin: 15px 0; overflow: hidden; }
+        .progress-bar { background: linear-gradient(90deg, #4f46e5, #10b981); height: 100%; width: 0%; transition: width 0.5s ease; }
+
+        /* 입력 폼 및 리스트 */
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+
+        /* 캘린더 그리드 스타일 */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 15px; }
+        .calendar-header { font-weight: bold; background: #e2e8f0; padding: 5px; border-radius: 4px; font-size: 12px; }
+
+        /* [변경] 목표 시간 대비 비율만큼 배경색이 채워지도록 수정 */
+        .calendar-day {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            min-height: 75px;
+            padding: 5px;
+            text-align: left;
+            font-size: 11px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            background-image: linear-gradient(to top, #c7d2fe var(--fill-percent, 0%), #ffffff var(--fill-percent, 0%));
+        }
+        .calendar-day.today { border: 2px solid var(--primary); }
+        .day-study-time { background: rgba(79, 70, 229, 0.15); color: #4338ca; border-radius: 4px; padding: 2px; text-align: center; font-weight: bold; font-size: 9px; margin-top: 4px; z-index: 1; }
+        .day-num { font-weight: bold; z-index: 1; }
+
+        /* 리스트 스타일 */
+        .history-list { text-align: left; max-height: 250px; overflow-y: auto; margin-top: 15px; }
+        .history-item { background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+
+        /* AI 챗 스타일 */
+        .ai-box { background: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; text-align: left; border-radius: 0 8px 8px 0; font-size: 15px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>✍️ 스마트 공부 타임워치</h1>
+    <p>AI 활용 인터랙티브 웹앱 목업 (컴퓨터개론 과제)</p>
+</header>
+
+<div class="container">
+    <nav class="nav-tabs">
+        <button class="tab-btn active" onclick="switchPage('home')">메인</button>
+        <button class="tab-btn" onclick="switchPage('timer')">타이머</button>
+        <button class="tab-btn" onclick="switchPage('history')">달력기록</button>
+        <button class="tab-btn" onclick="switchPage('edit')">과거수정</button>
+        <button class="tab-btn" onclick="switchPage('ai')">AI 분석</button>
+    </nav>
+
+    <div id="page-home" class="page active">
+        <div class="card" style="text-align: left;">
+            <h3 style="font-size: 16px; margin-bottom: 10px;">🎯 오늘의 목표 시간 설정</h3>
+            <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 10px;">
+                <input type="number" id="goal-hours" class="form-control" style="width: 25%;" min="0" value="3" placeholder="시"> 시간
+                <input type="number" id="goal-minutes" class="form-control" style="width: 25%;" min="0" value="0" placeholder="분"> 분
+                <input type="number" id="goal-seconds" class="form-control" style="width: 25%;" min="0" value="0" placeholder="초"> 초
+            </div>
+            <button class="btn btn-primary" style="width: 100%; margin:0; padding: 10px; font-size: 14px;" onclick="changeGoal()">목표 설정 적용하기</button>
+        </div>
+
+        <div class="card">
+            <h2>반가워요! 오늘도 파이팅🔥</h2>
+            <p style="color: var(--text-light); margin-top: 5px;">목표를 달성하고 AI 리포트를 확인해 보세요.</p>
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
+
+            <h3>오늘 총 공부 시간</h3>
+            <div class="timer-display" id="main-total-time">00:00:00</div>
+
+            <p style="text-align: left; font-weight: bold;">🎯 일일 목표 달성률 (<span id="goal-text">00:00:00 / 03:00:00</span>)</p>
+            <div class="progress-container">
+                <div class="progress-bar" id="main-progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-timer" class="page">
+        <div class="card">
+            <h2>실시간 공부 측정</h2>
+            <p style="color: var(--text-light);">집중하는 시간만큼 미래가 바뀝니다.</p>
+            <div class="timer-display" id="stopwatch">00:00:00</div>
+
+            <button class="btn btn-start" id="startBtn" onclick="startTimer()">공부 시작</button>
+            <button class="btn btn-stop" id="stopBtn" onclick="stopTimer()" style="display: none;">공부 종료</button>
+        </div>
+    </div>
+
+    <div id="page-history" class="page">
+        <div class="card">
+            <h2>📅 공부 캘린더 (2026년 5월)</h2>
+            <p style="color: var(--text-light); margin-bottom: 15px;">설정하신 목표 시간 대비 달성률만큼 칸이 아래서부터 차오릅니다.📊</p>
+
+            <div class="calendar-grid">
+                <div class="calendar-header">일</div><div class="calendar-header">월</div><div class="calendar-header">화</div>
+                <div class="calendar-header">수</div><div class="calendar-header">목</div><div class="calendar-header">금</div>
+                <div class="calendar-header">토</div>
+            </div>
+            <div class="calendar-grid" id="calendar-days-container">
+            </div>
+        </div>
+    </div>
+
+    <div id="page-edit" class="page">
+        <div class="card">
+            <h2>🕒 과거 기록 조작 및 수정</h2>
+            <p style="color: var(--text-light); margin-bottom: 15px;">어제 누락했거나 잘못 측정한 시간을 강제로 조작할 수 있습니다.</p>
+
+            <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                <div class="form-group">
+                    <label>수정할 날짜 선택</label>
+                    <input type="date" id="manual-date" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>공부 시간 입력</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="manual-hours" class="form-control" placeholder="시" min="0" value="0">
+                        <input type="number" id="manual-minutes" class="form-control" placeholder="분" min="0" value="0">
+                        <input type="number" id="manual-seconds" class="form-control" placeholder="초" min="0" value="0">
+                    </div>
+                </div>
+                <button class="btn btn-primary" style="width:100%; margin:0;" onclick="addManualRecord()">데이터 강제 조작/수정하기</button>
+            </div>
+
+            <h3 style="text-align: left; margin-top: 25px;">현재 저장된 전체 데이터 리스트</h3>
+            <div class="history-list" id="history-data"></div>
+        </div>
+    </div>
+
+    <div id="page-ai" class="page">
+        <div class="card">
+            <h2>🤖 AI 맞춤 공부 분석 리포트</h2>
+            <p style="color: var(--text-light); margin-bottom: 20px;">누적 데이터를 기반으로 AI 멘토가 조언합니다.</p>
+            <div class="ai-box" id="ai-content">
+                데이터를 기반으로 실시간 계산 중입니다...
+            </div>
+            <button class="btn btn-primary" style="margin-top: 15px;" onclick="updateAIReport()">AI 분석 새로고침</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 기본 더미 데이터 상태 (단위: 초)
+    let studyRecords = [
+        { date: '2026-05-28', seconds: 10800 }, // 3시간 공부 (목표 시간이 3시간이면 100% 꽉 참)
+        { date: '2026-05-29', seconds: 5400 }   // 1시간 반 공부 (목표 시간이 3시간이면 50% 차오름)
+    ];
+    let totalGoalSeconds = 10800; // 기본 목표 시간 3시간 (3 * 3600)
+
+    let timerInterval = null;
+    let elapsedSeconds = 0;
+
+    function getTodayString() {
+        const today = new Date();
+        return today.toISOString().split('T')[0];
+    }
+
+    document.getElementById('manual-date').value = getTodayString();
+
+    // 1. 페이지 전환
+    function switchPage(pageId) {
+        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+
+        document.getElementById(`page-${pageId}`).classList.add('active');
+        event.target.classList.add('active');
+
+        if(pageId === 'home') updateMainPage();
+        if(pageId === 'history') renderCalendar();
+        if(pageId === 'edit') renderHistoryList();
+        if(pageId === 'ai') updateAIReport();
+    }
+
+    // 2. 목표 시간 변경 기능 (시, 분, 초 단위)
+    function changeGoal() {
+        const h = parseInt(document.getElementById('goal-hours').value) || 0;
+        const m = parseInt(document.getElementById('goal-minutes').value) || 0;
+        const s = parseInt(document.getElementById('goal-seconds').value) || 0;
+
+        const calculatedSeconds = (h * 3600) + (m * 60) + s;
+
+        if (calculatedSeconds <= 0) {
+            alert("목표 시간을 0초보다 크게 설정해주세요.");
+            return;
+        }
+
+        totalGoalSeconds = calculatedSeconds;
+        alert(`🎯 일일 목표 시간이 ${formatTime(totalGoalSeconds)}로 성공적으로 재설정되었습니다!`);
+        updateMainPage();
+    }
+
+    // 3. 타이머 기능
+    function startTimer() {
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('stopBtn').style.display = 'inline-block';
+
+        timerInterval = setInterval(() => {
+            elapsedSeconds++;
+            document.getElementById('stopwatch').innerText = formatTime(elapsedSeconds);
+        }, 1000);
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        document.getElementById('startBtn').style.display = 'inline-block';
+        document.getElementById('stopBtn').style.display = 'none';
+
+        const todayStr = getTodayString();
+
+        const existingRecord = studyRecords.find(r => r.date === todayStr);
+        if(existingRecord) {
+            existingRecord.seconds += elapsedSeconds;
+        } else {
+            studyRecords.push({ date: todayStr, seconds: elapsedSeconds });
+        }
+
+        alert(`🎉 ${formatTime(elapsedSeconds)} 만큼의 공부 시간이 기록되었습니다.`);
+        elapsedSeconds = 0;
+        document.getElementById('stopwatch').innerText = "00:00:00";
+        updateMainPage();
+    }
+
+    // 4. 과거 기록 수정
+    function addManualRecord() {
+        const dateInput = document.getElementById('manual-date').value;
+        const hrs = parseInt(document.getElementById('manual-hours').value) || 0;
+        const mins = parseInt(document.getElementById('manual-minutes').value) || 0;
+        const secs = parseInt(document.getElementById('manual-seconds').value) || 0;
+
+        const totalInputSeconds = (hrs * 3600) + (mins * 60) + secs;
+
+        if(!dateInput || totalInputSeconds <= 0) {
+            alert("정확한 날짜와 시간을 입력해 주세요.");
+            return;
+        }
+
+        const existingRecord = studyRecords.find(r => r.date === dateInput);
+        if(existingRecord) {
+            existingRecord.seconds = totalInputSeconds;
+        } else {
+            studyRecords.push({ date: dateInput, seconds: totalInputSeconds });
+        }
+
+        alert(`💾 [${dateInput}] 기록이 ${formatTime(totalInputSeconds)}로 수정되었습니다.`);
+        document.getElementById('manual-hours').value = 0;
+        document.getElementById('manual-minutes').value = 0;
+        document.getElementById('manual-seconds').value = 0;
+        renderHistoryList();
+    }
+
+    // 5. 달력(캘린더) 렌더링 - [피드백 반영] 목표 시간 기준으로 채우기 변경
+    function renderCalendar() {
+        const container = document.getElementById('calendar-days-container');
+        container.innerHTML = '';
+
+        const year = 2026;
+        const month = 5;
+        const startDayOfWeek = 5; // 금요일 시작
+        const totalDays = 31;
+
+        for(let i = 0; i < startDayOfWeek; i++) {
+            const emptyCell = document.createElement('div');
+            emptyCell.className = 'calendar-day';
+            emptyCell.style.background = '#f8fafc';
+            container.appendChild(emptyCell);
+        }
+
+        for(let day = 1; day <= totalDays; day++) {
+            const dayStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const record = studyRecords.find(r => r.date === dayStr);
+
+            const dayCell = document.createElement('div');
+            dayCell.className = 'calendar-day';
+            if(dayStr === getTodayString()) dayCell.classList.add('today');
+
+            let timeText = '';
+            if(record && record.seconds > 0) {
+                // [핵심 변경] 24시간(86400초)이 아닌, 유저가 설정한 유동적인 '목표 시간(totalGoalSeconds)' 기준으로 게이지 계산
+                const fillPercent = Math.min((record.seconds / totalGoalSeconds) * 100, 100);
+
+                // CSS 변수로 비율 전달해 배경 그라데이션 조절
+                dayCell.style.setProperty('--fill-percent', `${fillPercent}%`);
+
+                const h = Math.floor(record.seconds / 3600);
+                const m = Math.floor((record.seconds % 3600) / 60);
+                const s = record.seconds % 60;
+                timeText = `<div class="day-study-time">${h}h ${m}m ${s}s</div>`;
+            } else {
+                dayCell.style.setProperty('--fill-percent', `0%`);
+            }
+
+            dayCell.innerHTML = `<div class="day-num">${day}</div>${timeText}`;
+            container.appendChild(dayCell);
+        }
+    }
+
+    // 6. 리스트 출력
+    function renderHistoryList() {
+        const container = document.getElementById('history-data');
+        container.innerHTML = '';
+        studyRecords.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+        studyRecords.forEach(record => {
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = `
+                    <strong>📅 ${record.date}</strong>
+                    <span>⏱️ ${formatTime(record.seconds)}</span>
+                `;
+            container.appendChild(item);
+        });
+    }
+
+    // 7. 메인화면 업데이트
+    function updateMainPage() {
+        const todayStr = getTodayString();
+        const todayRecord = studyRecords.find(r => r.date === todayStr);
+        const todaySecs = todayRecord ? todayRecord.seconds : 0;
+
+        document.getElementById('main-total-time').innerText = formatTime(todaySecs);
+
+        // 게이지바 달성률 계산
+        const percent = Math.min(Math.round((todaySecs / totalGoalSeconds) * 100), 100);
+        document.getElementById('main-progress').style.width = percent + '%';
+
+        // 시,분,초 텍스트 매칭
+        document.getElementById('goal-text').innerText = `${formatTime(todaySecs)} / ${formatTime(totalGoalSeconds)} (${percent}%)`;
+    }
+
+    // 8. AI 분석
+    function updateAIReport() {
+        const aiBox = document.getElementById('ai-content');
+        if(studyRecords.length === 0) {
+            aiBox.innerHTML = "공부 기록이 없습니다.";
+            return;
+        }
+
+        const totalSeconds = studyRecords.reduce((sum, r) => sum + r.seconds, 0);
+        const avgSeconds = Math.round(totalSeconds / studyRecords.length);
+
+        let aiAdvice = `<strong>🤖 AI 학습 멘토의 종합 리포트:</strong><br><br>`;
+        aiAdvice += `현재까지 총 <strong>${studyRecords.length}일</strong> 동안 <strong>${formatTime(totalSeconds)}</strong>만큼 몰입하셨습니다.<br>`;
+        aiAdvice += `하루 평균 학습량은 <strong>${formatTime(avgSeconds)}</strong>입니다.<br><br>`;
+
+        if(avgSeconds >= totalGoalSeconds) {
+            aiAdvice += "✨ <strong>완벽한 밸런스입니다!</strong> 유저가 설정한 목표 시·분·초 기준을 매번 상회하고 있습니다. 캘린더에 푸르게 채워지는 영역만큼 성장하고 있으니 자부심을 가지세요!";
+        } else if(avgSeconds >= 3600) {
+            aiAdvice += "📉 <strong>목표치에 근접해 가고 있습니다.</strong> 누락된 과거의 자투리 시간이 있다면 [과거수정] 탭을 이용해 빠짐없이 동기화해 주세요. 캘린더 칸이 조금 더 높게 차오르는 즐거움을 느낄 수 있습니다.";
+        } else {
+            aiAdvice += "⚠️ <strong>행동력 보완이 필요합니다.</strong> 하루 평균 공부량이 너무 적습니다. 캘린더의 하얀 여백이 너무 많지 않은지 체크하고, 타이머를 켜서 1초씩 칸을 채워나가는 재미를 느껴보세요.";
+        }
+
+        aiBox.innerHTML = aiAdvice;
+    }
+
+    function formatTime(seconds) {
+        const hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
+        const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+        const secs = String(seconds % 60).padStart(2, '0');
+        return `${hrs}:${mins}:${secs}`;
+    }
+
+    updateMainPage();
+</script>
+</body>
+</html>
